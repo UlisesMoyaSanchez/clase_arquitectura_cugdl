@@ -1,0 +1,10 @@
+*.pyc
+*.jpg
+*.png
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.zip
+*.tar.gz
+*.log
