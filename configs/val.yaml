@@ -1,0 +1,60 @@
+# ============================================================
+# configs/val.yaml — Configuración de VALIDACIÓN / TEST
+#
+# Uso:
+#   # Validar con el mejor checkpoint
+#   python main.py validate --config configs/val.yaml
+#
+#   # Evaluar en el conjunto de test
+#   python main.py test --config configs/val.yaml
+#
+# Si quieres apuntar a un checkpoint concreto, pásalo como
+# argumento extra o descomenta ckpt_path:
+#   python main.py validate --config configs/val.yaml \
+#          --ckpt_path models/best_model.ckpt
+# ============================================================
+
+seed_everything: 42
+
+# ----------------------------------------------------------
+# Trainer  (mínimo necesario para inferencia)
+# ----------------------------------------------------------
+trainer:
+  accelerator: auto
+  devices: auto
+  precision: "32-true"
+
+  logger:
+    class_path: lightning.pytorch.loggers.TensorBoardLogger
+    init_args:
+      save_dir: runs
+      name: dogcat
+      version: null        # se añade a la misma carpeta de la corrida
+
+# ----------------------------------------------------------
+# Modelo  (debe coincidir con el checkpoint que se carga)
+# ----------------------------------------------------------
+model:
+  num_classes: 2
+  lr: 0.001
+  momentum: 0.9
+  backbone: simplecnn
+  pretrained: false        # no necesita ImageNet en inferencia
+
+# ----------------------------------------------------------
+# Datos
+# ----------------------------------------------------------
+data:
+  data_dir: data
+  batch_size: 32
+  img_size: 224
+  train_ratio: 0.70
+  val_ratio: 0.15
+  mean: [0.485, 0.456, 0.406]
+  std:  [0.229, 0.224, 0.225]
+  num_workers: 4
+
+# ----------------------------------------------------------
+# Checkpoint a evaluar
+# ----------------------------------------------------------
+ckpt_path: models/best_model.ckpt
