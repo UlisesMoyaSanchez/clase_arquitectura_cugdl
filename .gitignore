@@ -8,3 +8,14 @@
 *.zip
 *.tar.gz
 *.log
+*.gif
+__pycache__/
+venv/
+env/
+.idea/
+.DS_Store
+*.swp
+*.swo
+.vscode/
+runs/
+models/
