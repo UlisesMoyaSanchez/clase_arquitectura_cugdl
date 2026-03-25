@@ -1,0 +1,41 @@
+\frametitle{ResNet-18 --- Transfer Learning}
+\begin{columns}
+        \column{0.52\textwidth}
+        \textbf{¿Qué es Transfer Learning?}
+        \begin{itemize}
+            \item Red preentrenada en \textbf{ImageNet} (1.2 M imágenes, 1000 clases)
+            \item Los primeros bloques extraen características generales:\\
+                  bordes, texturas, formas
+            \item \textbf{Solo reemplazamos} la capa final
+        \end{itemize}
+
+        \vspace{6pt}
+        \begin{lstlisting}[style=pythonstyle]
+net = resnet18(weights=ResNet18_Weights.DEFAULT)
+# Reemplazar cabeza clasificadora
+net.fc = nn.Linear(net.fc.in_features, num_classes)
+        \end{lstlisting}
+
+        \column{0.44\textwidth}
+        \begin{tcolorbox}[colback=lightgray, colframe=pyblue!60]
+            \scriptsize\centering
+            \begin{tabular}{lcc}
+                \toprule
+                & SimpleCNN & ResNet-18 \\
+                \midrule
+                Parámetros  & 25.8 M & 11.2 M \\
+                Preentrenado & No     & Sí (ImageNet) \\
+                Conv. bloques & 3     & 8 residuales \\
+                Global Pool  & No    & Sí (GAP) \\
+                \bottomrule
+            \end{tabular}
+        \end{tcolorbox}
+
+        \vspace{4pt}
+        Selección desde YAML:
+        \begin{lstlisting}[style=yamlstyle]
+model:
+  backbone: resnet18   # o simplecnn
+  pretrained: true
+        \end{lstlisting}
+    \end{columns}
