@@ -1,0 +1,73 @@
+# ============================================================
+# configs/fit_mlflow.yaml — Entrenamiento con MLFlow logger
+#
+# Uso:
+#   python main.py fit --config configs/fit_mlflow.yaml
+#
+# Requiere:
+#   pip install mlflow
+#   mlflow ui   # (opcional) para abrir la UI en localhost:5000
+# ============================================================
+
+seed_everything: 42
+
+# ----------------------------------------------------------
+# Trainer
+# ----------------------------------------------------------
+trainer:
+  max_epochs: 10
+  accelerator: auto
+  devices: auto
+  precision: "32-true"
+
+  logger:
+    class_path: lightning.pytorch.loggers.MLFlowLogger
+    init_args:
+      experiment_name: dogcat
+      tracking_uri: file:./mlruns    # directorio local; también acepta http://...
+      log_model: true                # registra el modelo como artefacto
+
+  callbacks:
+    - class_path: lightning.pytorch.callbacks.ModelCheckpoint
+      init_args:
+        monitor: val/acc
+        mode: max
+        save_top_k: 1
+        dirpath: models/
+        filename: best_model
+        verbose: true
+
+    - class_path: lightning.pytorch.callbacks.EarlyStopping
+      init_args:
+        monitor: val/loss
+        patience: 4
+        mode: min
+        verbose: true
+
+    - class_path: lightning.pytorch.callbacks.LearningRateMonitor
+      init_args:
+        logging_interval: epoch
+
+# ----------------------------------------------------------
+# Modelo
+# ----------------------------------------------------------
+model:
+  num_classes: 2
+  lr: 0.001
+  momentum: 0.9
+  backbone: simplecnn
+  pretrained: true
+  img_size: 64
+
+# ----------------------------------------------------------
+# Datos
+# ----------------------------------------------------------
+data:
+  data_dir: data
+  batch_size: 32
+  img_size: 64
+  train_ratio: 0.70
+  val_ratio: 0.15
+  mean: [0.485, 0.456, 0.406]
+  std:  [0.229, 0.224, 0.225]
+  num_workers: 4

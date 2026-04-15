@@ -1,0 +1,40 @@
+# ============================================================
+# dvc.yaml — Pipeline reproducible con DVC
+#
+# Uso:
+#   dvc repro            # ejecuta el pipeline completo
+#   dvc repro train      # ejecuta solo la etapa de entrenamiento
+#   dvc repro evaluate   # ejecuta solo la etapa de evaluación
+#
+# Requisitos:
+#   pip install dvc
+#   dvc init             # (solo la primera vez)
+# ============================================================
+
+stages:
+  train:
+    cmd: python main.py fit --config configs/fit.yaml
+    deps:
+      - data/dogs
+      - data/cats
+      - configs/fit.yaml
+      - model.py
+      - dataset.py
+      - main.py
+    outs:
+      - models/best_model.ckpt:
+          cache: true
+    plots:
+      - runs/dogcat/:
+          cache: false
+
+  evaluate:
+    cmd: python main.py test --config configs/val.yaml --ckpt_path models/best_model.ckpt
+    deps:
+      - models/best_model.ckpt
+      - configs/val.yaml
+      - data/dogs
+      - data/cats
+      - model.py
+      - dataset.py
+      - main.py

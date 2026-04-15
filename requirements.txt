@@ -6,3 +6,5 @@ jsonargparse[signatures]>=4.27.7
 pillow
 tensorboard
 numpy
+mlflow
+dvc

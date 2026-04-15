@@ -40,6 +40,7 @@ model:
   momentum: 0.9
   backbone: simplecnn
   pretrained: false        # no necesita ImageNet en inferencia
+  img_size: 64
 
 # ----------------------------------------------------------
 # Datos
@@ -47,7 +48,7 @@ model:
 data:
   data_dir: data
   batch_size: 32
-  img_size: 224
+  img_size: 64
   train_ratio: 0.70
   val_ratio: 0.15
   mean: [0.485, 0.456, 0.406]

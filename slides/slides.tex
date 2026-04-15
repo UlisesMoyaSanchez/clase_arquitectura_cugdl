@@ -128,8 +128,9 @@
             \item Aprender el patrón \textbf{LightningModule} para organizar código de entrenamiento
             \item Practicar \textbf{data augmentation} y normalización de imágenes
             \item Separar correctamente \textbf{train / val / test}
-            \item Usar \textbf{TensorBoard} para monitorear experimentos
+            \item Usar \textbf{TensorBoard} y \textbf{MLFlow} para monitorear experimentos
             \item Gestionar hiperparámetros con \textbf{archivos YAML}
+            \item Crear \textbf{pipelines reproducibles} con \textbf{DVC}
         \end{itemize}
 
         \column{0.42\textwidth}
@@ -138,8 +139,9 @@
             \faIcon{python}\ \textbf{Python 3.10}\\[4pt]
             \faIcon{fire}\ \textbf{PyTorch 2.7} + CUDA 12.6\\[4pt]
             \faIcon{bolt}\ \textbf{PyTorch Lightning 2.6}\\[4pt]
-            \faIcon{chart-line}\ \textbf{TensorBoard}\\[4pt]
-            \faIcon{sliders}\ \textbf{LightningCLI + YAML}
+            \faIcon{chart-line}\ \textbf{TensorBoard / MLFlow}\\[4pt]
+            \faIcon{sliders}\ \textbf{LightningCLI + YAML}\\[4pt]
+            \faIcon{code-branch}\ \textbf{DVC} (pipelines)
         \end{tcolorbox}
     \end{columns}
 \end{frame}
@@ -211,8 +213,10 @@
         \begin{tcolorbox}[colback=lightgray, colframe=pyorange!80, title=Configuración]
         \scriptsize
         \begin{tabular}{ll}
-            \codefile{configs/fit.yaml} & Entrenamiento    \\
-            \codefile{configs/val.yaml} & Validación/Test  \\
+            \codefile{configs/fit.yaml}        & Entrenamiento (TensorBoard) \\
+            \codefile{configs/fit\_mlflow.yaml} & Entrenamiento (MLFlow)      \\
+            \codefile{configs/val.yaml}        & Validación/Test              \\
+            \codefile{dvc.yaml}                & Pipeline DVC                \\
         \end{tabular}
         \end{tcolorbox}
 
@@ -668,6 +672,207 @@ tensorboard --logdir \
 \end{frame}
 
 %==============================================================================
+\section{MLFlow --- Tracking de Experimentos}
+%==============================================================================
+
+\begin{frame}{¿Por qué MLFlow?}
+    \begin{columns}
+        \column{0.52\textwidth}
+        \textbf{Limitaciones de TensorBoard:}
+        \begin{itemize}
+            \item Solo visualiza \textit{logs} locales
+            \item No registra hiperparámetros de forma estructurada
+            \item Difícil comparar \textit{runs} con distintos configs
+            \item No versiona artefactos (modelos, datos)
+        \end{itemize}
+
+        \vspace{8pt}
+        \textbf{MLFlow resuelve esto:}
+        \begin{itemize}
+            \item \textbf{Tracking}: métricas, parámetros, artefactos
+            \item \textbf{UI web}: comparación visual de \textit{runs}
+            \item \textbf{Model Registry}: versionado de modelos
+            \item Compatible con PyTorch Lightning (cambiar 1 línea)
+        \end{itemize}
+
+        \column{0.44\textwidth}
+        \begin{tcolorbox}[colback=lightgray, colframe=pyblue!60, title=\scriptsize Componentes de MLFlow]
+            \scriptsize
+            \begin{tabular}{ll}
+                \toprule
+                Componente & Función \\
+                \midrule
+                \textit{Tracking}  & Métricas + params \\
+                \textit{Projects}  & Reproducibilidad \\
+                \textit{Models}    & Registro/deploy \\
+                \textit{UI}        & Visualización \\
+                \bottomrule
+            \end{tabular}
+        \end{tcolorbox}
+
+        \vspace{6pt}
+        \begin{tcolorbox}[colback=darkgreen!10, colframe=darkgreen]
+            \scriptsize
+            \texttt{pip install mlflow}\\[4pt]
+            UI: \texttt{mlflow ui}\\
+            $\Rightarrow$ \texttt{localhost:5000}
+        \end{tcolorbox}
+    \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Integración con Lightning --- MLFlowLogger}
+
+    \begin{columns}
+        \column{0.48\textwidth}
+        \begin{lstlisting}[style=yamlstyle, title=configs/fit\_mlflow.yaml]
+trainer:
+  logger:
+    class_path: ...MLFlowLogger
+    init_args:
+      experiment_name: dogcat
+      tracking_uri: file:./mlruns
+      log_model: true
+        \end{lstlisting}
+
+        \vspace{4pt}
+        \begin{lstlisting}[style=bashstyle]
+# Entrenar con MLFlow
+python main.py fit \
+    --config configs/fit_mlflow.yaml
+
+# Ver resultados
+mlflow ui \
+    --backend-store-uri mlruns
+        \end{lstlisting}
+
+        \column{0.48\textwidth}
+        \textbf{¿Qué se registra automáticamente?}
+        \begin{itemize}
+            \item Todas las métricas logueadas con \texttt{self.log()}
+            \item Hiperparámetros (\texttt{save\_hyperparameters()})
+            \item Checkpoints como artefactos (\texttt{log\_model: true})
+        \end{itemize}
+
+        \vspace{6pt}
+        \begin{tcolorbox}[colback=pyorange!15, colframe=pyorange!80]
+            \scriptsize
+            \textbf{Cero cambios en el modelo:} el código de
+            \texttt{DogCatModule} es idéntico. Solo cambia
+            el \textit{logger} en el YAML.
+        \end{tcolorbox}
+
+        \vspace{4pt}
+        \teachernote{Enfatizar que la separación logger/modelo es una ventaja de Lightning: se puede cambiar el backend de tracking sin tocar el código de entrenamiento.}
+    \end{columns}
+\end{frame}
+
+%==============================================================================
+\section{DVC --- Pipelines Reproducibles}
+%==============================================================================
+
+\begin{frame}{¿Por qué DVC?}
+    \begin{columns}
+        \column{0.52\textwidth}
+        \textbf{Problemas comunes en ML:}
+        \begin{itemize}
+            \item ``¿Con qué datos entrené este modelo?''
+            \item ``¿Qué código generó este checkpoint?''
+            \item Archivos grandes no caben en Git
+            \item Re-ejecutar todo manualmente es error-prone
+        \end{itemize}
+
+        \vspace{8pt}
+        \textbf{DVC (Data Version Control):}
+        \begin{itemize}
+            \item \textbf{Versiona datos} sin almacenarlos en Git
+            \item Define \textbf{pipelines} como grafo de dependencias
+            \item \texttt{dvc repro} re-ejecuta solo lo necesario
+            \item Soporta remotes: S3, GCS, SSH, local
+        \end{itemize}
+
+        \column{0.44\textwidth}
+        \begin{tcolorbox}[colback=lightgray, colframe=pyblue!60, title=\scriptsize Instalación]
+            \scriptsize
+            \texttt{pip install dvc}\\
+            \texttt{dvc init} {\tiny (solo una vez)}
+        \end{tcolorbox}
+
+        \vspace{6pt}
+        \begin{tcolorbox}[colback=lightgray, colframe=darkgreen!70, title=\scriptsize Pipeline DAG]
+            \scriptsize\centering
+            \begin{tikzpicture}[scale=0.7,
+                box/.style={draw, rounded corners=3pt, minimum width=1.4cm,
+                            minimum height=0.5cm, font=\scriptsize, fill=#1}
+            ]
+                \node[box=pyblue!25]    (train)    at (0,0)    {\texttt{train}};
+                \node[box=darkgreen!25] (evaluate) at (0,-1.2) {\texttt{evaluate}};
+                \draw[-{Stealth[length=4pt]}, thick] (train) -- (evaluate);
+            \end{tikzpicture}\\[4pt]
+            \texttt{dvc dag}
+        \end{tcolorbox}
+    \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Pipeline DVC --- \codefile{dvc.yaml}}
+
+    \begin{columns}
+        \column{0.50\textwidth}
+        \begin{lstlisting}[style=yamlstyle, title=dvc.yaml]
+stages:
+  train:
+    cmd: python main.py fit
+         --config configs/fit.yaml
+    deps:
+      - data/dogs
+      - data/cats
+      - configs/fit.yaml
+      - model.py
+      - dataset.py
+      - main.py
+    outs:
+      - models/best_model.ckpt
+
+  evaluate:
+    cmd: python main.py test
+         --config configs/val.yaml
+         --ckpt_path models/best_model.ckpt
+    deps:
+      - models/best_model.ckpt
+      - configs/val.yaml
+      - data/dogs
+      - data/cats
+        \end{lstlisting}
+
+        \column{0.46\textwidth}
+        \textbf{Conceptos clave:}
+        \begin{itemize}
+            \item \texttt{deps}: dependencias que DVC monitorea
+            \item \texttt{outs}: archivos generados (cacheados)
+            \item \texttt{cmd}: comando a ejecutar
+        \end{itemize}
+
+        \vspace{6pt}
+        \begin{lstlisting}[style=bashstyle]
+# Ejecutar pipeline completo
+dvc repro
+
+# Solo una etapa
+dvc repro train
+
+# Ver grafo
+dvc dag
+
+# Versionar datos
+dvc add data/
+git add data.dvc .gitignore
+        \end{lstlisting}
+
+        \vspace{4pt}
+        \teachernote{Demostrar que si cambias un hiperparámetro en el YAML, \texttt{dvc repro} detecta el cambio y re-entrena. Si solo cambias \texttt{val.yaml}, solo re-evalúa.}
+    \end{columns}
+\end{frame}
+
+%==============================================================================
 \section{Flujo Completo y Resultados}
 %==============================================================================
 
@@ -675,44 +880,46 @@ tensorboard --logdir \
 
     \begin{center}
     \begin{tikzpicture}[
-        scale=0.88,
-        step/.style={draw, rounded corners=4pt, minimum width=2.5cm,
-                     minimum height=0.65cm, font=\scriptsize, align=center, fill=#1},
+        scale=0.85,
+        step/.style={draw, rounded corners=4pt, minimum width=2.3cm,
+                     minimum height=0.6cm, font=\scriptsize, align=center, fill=#1},
         arrow/.style={-{Stealth[length=5pt]}, thick},
     ]
         %--- Fila 1 ---
-        \node[step=pyorange!40]   (data)  at (0,0)    {Descarga\\de datos\\{\tiny create\_data.sh}};
-        \node[step=pyblue!25]     (split) at (3,0)    {Split\\train/val/test\\{\tiny DogCatDataModule}};
-        \node[step=darkgreen!25]  (aug)   at (6,0)    {Transforms\\+ Augmentation\\{\tiny build\_transforms}};
-        \node[step=pyblue!25]     (model) at (9,0)    {Modelo\\{\tiny DogCatModule}\\{\tiny SimpleCNN/ResNet}};
+        \node[step=pyorange!40]   (data)  at (0,0)    {Descarga\\{\tiny create\_data.sh}};
+        \node[step=pyblue!25]     (split) at (2.8,0)  {Split\\{\tiny DogCatDataModule}};
+        \node[step=darkgreen!25]  (aug)   at (5.6,0)  {Transforms\\{\tiny build\_transforms}};
+        \node[step=pyblue!25]     (model) at (8.4,0)  {Modelo\\{\tiny DogCatModule}};
+        \node[step=red!20]        (train) at (11.2,0)  {Train\\{\tiny Trainer.fit()}};
 
         \draw[arrow] (data)  -- (split);
         \draw[arrow] (split) -- (aug);
         \draw[arrow] (aug)   -- (model);
-
-        %--- Fila 2 ---
-        \node[step=red!20]        (train) at (9,-1.5) {Entrenamiento\\{\tiny Trainer.fit()}};
-        \node[step=pyorange!40]   (ckpt)  at (6,-1.5) {Checkpoint\\{\tiny best\_model.ckpt}};
-        \node[step=darkgreen!25]  (eval)  at (3,-1.5) {Evaluación\\{\tiny test set}};
-        \node[step=pyblue!25]     (tb)    at (0,-1.5) {TensorBoard\\{\tiny runs/dogcat/vN}};
-
         \draw[arrow] (model) -- (train);
-        \draw[arrow] (train) -- (ckpt);
-        \draw[arrow] (ckpt)  -- (eval);
-        \draw[arrow] (eval)  -- (tb);
 
-        %--- YAML ---
+        %--- Fila 2: artefactos ---
+        \node[step=pyorange!40]   (ckpt)  at (2.8,-1.5)  {Checkpoint\\{\tiny best\_model.ckpt}};
+        \node[step=darkgreen!25]  (eval)  at (5.6,-1.5) {Evaluación\\{\tiny test set}};
+
+        \draw[arrow] (train) -- ++(0,-0.75) -| (ckpt);
+        \draw[arrow] (ckpt)  -- (eval);
+
+        %--- Fila 2: tracking ---
+        \node[step=pyblue!25]     (tb)    at (8.4,-1.5) {TensorBoard\\{\tiny runs/dogcat/vN}};
+        \node[step=codepurple!25] (mlf)   at (11.2,-1.5) {MLFlow\\{\tiny mlruns/}};
+
+        \draw[arrow] (train) -- (tb);
+        \draw[arrow, dashed] (train) -- (mlf);
+
+        %--- DVC ---
         \node[draw=gray, dashed, rounded corners, font=\tiny,
-              fill=gray!10, minimum width=1.8cm, minimum height=1.0cm]
-              (yaml) at (6,0.95) {fit.yaml\\val.yaml};
-        \draw[->, dashed, gray] (yaml) -- (split);
-        \draw[->, dashed, gray] (yaml) -- (model);
-        \draw[->, dashed, gray] (yaml) to[bend right=20] (train);
+              fill=gray!10, minimum width=11cm, minimum height=0.5cm]
+              (dvc) at (5.6,-2.6) {\texttt{dvc repro} --- orquesta todo el pipeline};
     \end{tikzpicture}
     \end{center}
 
-    \vspace{4pt}
-    \teachernote{Recorrer el diagrama con los alumnos y preguntar: ¿qué pasaría si entrenamos sin split de validación? ¿Y sin EarlyStopping?}
+    \vspace{2pt}
+    \teachernote{Mostrar que DVC orquesta el pipeline completo y MLFlow/TensorBoard son intercambiables como logger. Línea sólida = TensorBoard (default), línea punteada = MLFlow (alternativo).}
 \end{frame}
 
 \begin{frame}{Resultados --- Ejecución de Prueba}
@@ -775,32 +982,36 @@ bash create_data.sh
         \end{lstlisting}
 
         \begin{lstlisting}[style=bashstyle, title=Entrenamiento]
+# Con TensorBoard
 python main.py fit \
     --config configs/fit.yaml
+
+# Con MLFlow
+python main.py fit \
+    --config configs/fit_mlflow.yaml
         \end{lstlisting}
 
         \column{0.48\textwidth}
         \begin{lstlisting}[style=bashstyle, title=Evaluación]
-# Validar con mejor checkpoint
 python main.py validate \
     --config configs/val.yaml
 
-# Evaluar en test set
 python main.py test \
     --config configs/val.yaml
         \end{lstlisting}
 
-        \begin{lstlisting}[style=bashstyle, title=TensorBoard]
+        \begin{lstlisting}[style=bashstyle, title=Tracking y Pipelines]
+# TensorBoard
 tensorboard --logdir runs
-# Abrir: http://localhost:6006
+
+# MLFlow UI
+mlflow ui --backend-store-uri mlruns
+
+# DVC: ejecutar pipeline
+dvc repro
+dvc dag     # ver grafo
         \end{lstlisting}
     \end{columns}
-
-    \vspace{4pt}
-    \begin{tcolorbox}[colback=pyblue!10, colframe=pyblue]
-        \scriptsize
-        \textbf{Tip:} \texttt{python main.py fit -{}-print\_config} imprime la configuración completa en YAML $\Rightarrow$ útil para guardar un experimento exacto.
-    \end{tcolorbox}
 \end{frame}
 
 \begin{frame}{Ejercicios Propuestos}
@@ -809,23 +1020,26 @@ tensorboard --logdir runs
         \item[\faIcon{flask}] \textbf{Cambiar backbone}: Modifica \codefile{configs/fit.yaml} para usar \texttt{resnet18} con \texttt{pretrained: true}.
         Compara la curva de validación en TensorBoard contra \texttt{simplecnn}.
 
-        \vspace{6pt}
+        \vspace{4pt}
         \item[\faIcon{sliders}] \textbf{Ajuste de hiperparámetros}: Prueba \texttt{lr: 0.01} y \texttt{lr: 0.0001}.
         ¿En cuál converge más rápido? ¿En cuál hay inestabilidad?
 
-        \vspace{6pt}
+        \vspace{4pt}
         \item[\faIcon{image}] \textbf{Aumentar el dataset}: Descarga más imágenes y observa si la accuracy de validación sube.
 
-        \vspace{6pt}
+        \vspace{4pt}
         \item[\faIcon{microchip}] \textbf{Mixed precision}: Activa \texttt{precision: "16-mixed"} en el YAML.
         Mide la diferencia de tiempo por época.
 
-        \vspace{6pt}
-        \item[\faIcon{code-branch}] \textbf{Agregar scheduler}: Implementa un \texttt{CosineAnnealingLR} en \texttt{configure\_optimizers()} y observa el efecto en TensorBoard.
+        \vspace{4pt}
+        \item[\faIcon{chart-bar}] \textbf{MLFlow tracking}: Entrena con \codefile{configs/fit\_mlflow.yaml}, abre la UI (\texttt{mlflow ui}) y compara dos \textit{runs} con diferente \texttt{lr}.
+
+        \vspace{4pt}
+        \item[\faIcon{code-branch}] \textbf{Pipeline DVC}: Modifica un hiperparámetro en el YAML, ejecuta \texttt{dvc repro} y verifica que solo se re-entrena lo necesario.
     \end{enumerate}
 
-    \vspace{6pt}
-    \teachernote{Ejercicio 1 es el más impactante para visualizar Transfer Learning. Ejercicio 4 requiere GPU con soporte FP16 (Ampere+ en CUDA $\geq$ 11).}
+    \vspace{4pt}
+    \teachernote{Ejercicios 5 y 6 son los más importantes para el flujo MLOps. Demostrar en vivo cómo \texttt{dvc repro} detecta cambios y MLFlow compara corridas.}
 \end{frame}
 
 %==============================================================================
@@ -842,7 +1056,8 @@ tensorboard --logdir runs
                 \item \textbf{LightningDataModule} encapsula la preparación y división del dataset
                 \item Los \textbf{Callbacks} añaden comportamiento sin modificar el loop
                 \item \textbf{LightningCLI} + YAML permite experimentos reproducibles y configurables
-                \item \textbf{TensorBoard} versiona automáticamente cada ejecución
+                \item \textbf{TensorBoard / MLFlow} para tracking de métricas, parámetros y artefactos
+                \item \textbf{DVC} para pipelines reproducibles y versionado de datos
             \end{itemize}
         \end{tcolorbox}
 
@@ -854,7 +1069,8 @@ tensorboard --logdir runs
                 \item Data augmentation avanzada:\\Mixup, CutMix
                 \item Técnicas de regularización:\\Label smoothing, Weight decay
                 \item Deployment:\\ONNX, TorchScript
-                \item Tracking de experimentos:\\MLflow, DVC
+                \item MLFlow Model Registry\\para versionado de modelos
+                \item DVC remotes (S3, GCS)\\para datos en la nube
             \end{itemize}
         \end{tcolorbox}
     \end{columns}
