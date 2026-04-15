@@ -13,14 +13,15 @@ from torchvision import models
 class SimpleCNN(nn.Module):
     """CNN sencilla: 3 bloques Conv+ReLU+MaxPool seguidos de 2 capas FC."""
 
-    def __init__(self, num_classes: int = 2):
+    def __init__(self, num_classes: int = 2, img_size: int = 224):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.pool  = nn.MaxPool2d(2, 2)
-        # 224 → 112 → 56 → 28  (tres poolings)
-        self.fc1     = nn.Linear(128 * 28 * 28, 256)
+        # tres poolings: img_size → img_size/2 → img_size/4 → img_size/8
+        feat_size = img_size // 8
+        self.fc1     = nn.Linear(128 * feat_size * feat_size, 256)
         self.fc2     = nn.Linear(256, num_classes)
         self.dropout = nn.Dropout(0.5)
 
@@ -62,12 +63,13 @@ class DogCatModule(L.LightningModule):
         momentum: float = 0.9,
         backbone: str = "simplecnn",
         pretrained: bool = True,
+        img_size: int = 224,
     ):
         super().__init__()
         self.save_hyperparameters()
 
         if backbone == "simplecnn":
-            self.net = SimpleCNN(num_classes=num_classes)
+            self.net = SimpleCNN(num_classes=num_classes, img_size=img_size)
         elif backbone == "resnet18":
             self.net = _build_resnet18(num_classes, pretrained=pretrained)
         else:

@@ -53,6 +53,7 @@ model:
   momentum: 0.9
   backbone: simplecnn     # "simplecnn" | "resnet18"
   pretrained: true        # solo aplica si backbone=resnet18
+  img_size: 64            # debe coincidir con data.img_size
 
 # ----------------------------------------------------------
 # Datos
@@ -60,7 +61,7 @@ model:
 data:
   data_dir: data
   batch_size: 32
-  img_size: 224
+  img_size: 64
   train_ratio: 0.70       # 70 % entrenamiento
   val_ratio: 0.15         # 15 % validación  → 15 % test implícito
   mean: [0.485, 0.456, 0.406]
